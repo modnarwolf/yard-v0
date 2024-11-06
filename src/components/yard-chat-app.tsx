@@ -1,439 +1,552 @@
-import * as React from "react"
-import { MessageSquare, Users, FileText, Copy, Loader2, Send, ChevronRight, Edit2 } from "lucide-react"
+"use client"
 
-// import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import React, { useState, useEffect } from "react"
+import Peer from "peerjs"
+import {
+  BadgeCheck,
+  Bell,
+  ChevronRight,
+  ChevronsUpDown,
+  Command,
+  CreditCard,
+  LogOut,
+  MessageSquare,
+  Send,
+  Copy,
+  Users,
+  Edit2,
+  X,
+  Leaf,
+  Sprout,
+  Flower,
+  FileText,
+  Club,
+  LifeBuoy,
+} from "lucide-react"
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Separator } from "@/components/ui/separator"
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
+  SidebarInset,
   SidebarMenu,
-  SidebarMenuItem,
+  SidebarMenuAction,
   SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
-  SidebarRail,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Toaster } from "./ui/toaster"
 import { useToast } from "@/hooks/use-toast"
-import { ToastAction } from "@/components/ui/toast"
 
-import Peer from "peerjs"
-import { ChatBubbleIcon } from "@radix-ui/react-icons"
+interface YardChatAppComponentProps {
+  did: string
+  peer: Peer
+}
 
-type Page = "peers" | "chat" | "files" | "groupChat" | string;
-
-type Message = {
-  text: string;
-  type: "self" | "peer";
-};
-
-export function YardChatAppComponent({ did, peer }) {
-  const [connections, setConnections] = React.useState<Peer.DataConnection[]>([])
-  const [messages, setMessages] = React.useState<{ [key: string]: Message[] }>({})
-  const [inputMessage, setInputMessage] = React.useState("")
-  const [inputPeerId, setInputPeerId] = React.useState("")
-  const [isLoading, setIsLoading] = React.useState(false)
-  const [currentPage, setCurrentPage] = React.useState<Page>("peers")
-  const [customPeerNames, setCustomPeerNames] = React.useState<{ [key: string]: string }>({})
-  const [editingPeerId, setEditingPeerId] = React.useState<string | null>(null)
-  const messagesEndRef = React.useRef<HTMLDivElement>(null)
+export function YardChatAppComponent({ did, peer }: YardChatAppComponentProps) {
+  const [currentPage, setCurrentPage] = useState("connected-peers")
+  const [connections, setConnections] = useState<Peer.DataConnection[]>([])
+  const [messages, setMessages] = useState<Record<string, { text: string, type: 'self' | 'peer' }[]>>({})
+  const [inputMessage, setInputMessage] = useState("")
+  const [customPeerNames, setCustomPeerNames] = useState<Record<string, string>>({})
+  const [editingPeerId, setEditingPeerId] = useState<string | null>(null)
+  const [newPeerName, setNewPeerName] = useState("")
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false)
+  const [inputPeerId, setInputPeerId] = useState("")
   const { toast } = useToast();
 
-  React.useEffect(() => {
-    if (!peer) return;
-
+  useEffect(() => {
     peer.on("connection", handleIncomingConnection)
 
     return () => {
-      peer.off("connection", handleIncomingConnection)
+      peer.removeListener("connection", handleIncomingConnection)
     }
   }, [peer])
 
-  React.useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, currentPage])
+  const copyPeerId = () => {
+    if (navigator.clipboard) {
+      console.log("PID Copied");
+      
+      navigator.clipboard.writeText(data.user.pid.split(":")[2]).then(() => {
+        toast({
+          title: "Peer ID Copied",
+          description: "Your Peer ID has been copied to the clipboard.",
+        })
+      }, (err) => {
+        console.error('Could not copy text: ', err);
+        toast({
+          title: "Copy Failed",
+          description: "Failed to copy Peer ID. Please try again.",
+          variant: "destructive",
+        })
+      });
+    } else {
+      // Fallback for browsers that don't support the Clipboard API
+      const textArea = document.createElement("textarea");
+      textArea.value = data.user.pid.split(":")[2];
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        document.execCommand('copy');
+        toast({
+          title: "Peer ID Copied",
+          description: "Your Peer ID has been copied to the clipboard.",
+        })
+      } catch (err) {
+        console.error('Could not copy text: ', err);
+        toast({
+          title: "Copy Failed",
+          description: "Failed to copy Peer ID. Please try again.",
+          variant: "destructive",
+        })
+      }
+      document.body.removeChild(textArea);
+    }
+  };
 
   const handleIncomingConnection = (newConn: Peer.DataConnection) => {
-    console.log(`Received connection from peer: ${newConn.peer}`);
-
     if (connections.find((conn) => conn.peer === newConn.peer)) {
-      console.log(`Already connected to peer: ${newConn.peer}`);
-      return; // Avoid duplicate connections
+      return
     }
-
     newConn.on("open", () => {
-      setConnections((prev) => [...prev, newConn]);
-      setMessages((prevMessages) => ({ ...prevMessages, [newConn.peer]: [] }));
-
-      // Handle incoming data
+      setConnections((prev) => [...prev, newConn])
+      setMessages((prevMessages) => ({ ...prevMessages, [newConn.peer]: [] }))
       newConn.on("data", (data) => {
-        console.log(`Received message from peer (${newConn.peer}): ${data}`);
-        const truncatedPeerId = newConn.peer.slice(-6); // Use last 6 characters for abbreviation
-        addMessage(newConn.peer, `Peer (${truncatedPeerId}): ${data}`, "peer");
-      });
-    });
-
-    newConn.on("error", (err) => {
-      console.error("Connection error:", err);
-      alert("Failed to connect peer: " + err);
-    });
-  };
-
-  const connectToPeer = (peerIdToConnect: string) => {
-    if (!peer) return;
-
-    if (connections.find(conn => conn.peer === peerIdToConnect)) {
-      alert("Already connected to this peer!");
-      return;
-    }
-
-    console.log(`Attempting to connect to peer ID: ${peerIdToConnect}`);
-    setIsLoading(true);
-
-    const newConn = peer.connect(peerIdToConnect);
-
-    newConn.on("open", () => {
-      console.log(`Successfully connected to peer: ${peerIdToConnect}`);
-      setIsLoading(false);
-
-      setConnections(prev => [...prev, newConn]);
-      setMessages((prevMessages) => ({ ...prevMessages, [newConn.peer]: [] }));
-
-      newConn.on("data", (data) => {
-        console.log(`Received message from peer (${newConn.peer}): ${data}`);
-        const truncatedPeerId = newConn.peer.slice(-6); // Use last 6 characters for abbreviation
-        addMessage(newConn.peer, `Peer (${truncatedPeerId}): ${data}`, "peer");
-      });
-    });
-
-    newConn.on("error", (err) => {
-      console.error("Connection error:", err);
-      alert("Failed to connect to peer: " + err);
-      setIsLoading(false);
-    });
-  };
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (connections.length > 0 && inputMessage.trim()) {
-      const targetConn = connections.find(conn => conn.peer === currentPage);
-      if (targetConn && targetConn.open) {
-        targetConn.send(inputMessage);
-        console.log(`Message sent to ${targetConn.peer.slice(-6)}: ${inputMessage}`);
-        addMessage(targetConn.peer, `You: ${inputMessage}`, "self");
-      }
-      setInputMessage("");
-    } else {
-      alert("You are not connected to any peers or the message is empty!")
-    }
-  }
-
-  const addMessage = (peerId: string, message: string, type: "self" | "peer") => {
-    setMessages(prev => {
-      const updatedMessages = { ...prev };
-      if (!updatedMessages[peerId]) {
-        updatedMessages[peerId] = [];
-      }
-      updatedMessages[peerId] = [...updatedMessages[peerId], { text: message, type }];
-      return updatedMessages;
-    });
-  }
-
-  const copyPeerId = () => {
-    if (!peer) return;
-    navigator.clipboard.writeText(peer.id).then(() => {
-      console.log("Peer ID copied to clipboard")
-      //! Toast not working
-      // toast({ 
-      //   title: "CID",
-      //   description: "Peer ID Copied to clipboard",
-      //   action: (<ToastAction altText="CID"></ToastAction>),
-      // })
-      alert("Peer ID copied to clipboard!")
-    }).catch(err => {
-      console.error("Failed to copy Peer ID:", err)
+        addMessage(newConn.peer, `${customPeerNames[newConn.peer] || newConn.peer}: ${data}`, "peer")
+      })
+    })
+    newConn.on("close", () => {
+      handleDisconnect(newConn.peer)
     })
   }
 
-  const disconnectPeer = (peerId: string) => {
-    setConnections((prevConnections) => {
-      const connToDisconnect = prevConnections.find((conn) => conn.peer === peerId);
-      if (connToDisconnect) {
-        connToDisconnect.close();
-        console.log(`Disconnected from peer: ${peerId}`);
+  const connectToPeer = () => {
+    if (!peer || !inputPeerId.trim()) return
+    if (connections.find((conn) => conn.peer === inputPeerId)) {
+      toast({
+        title: "Already connected",
+        description: "You are already connected to this peer.",
+        variant: "destructive",
+      })
+      return
+    }
+    const newConn = peer.connect(inputPeerId)
+    handleIncomingConnection(newConn)
+    setInputPeerId("")
+  }
+  
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (currentPage && currentPage !== "connected-peers" && inputMessage.trim()) {
+      const targetConn = connections.find((conn) => conn.peer === currentPage)
+      if (targetConn && targetConn.open) {
+        targetConn.send(inputMessage)
+        addMessage(currentPage, `You: ${inputMessage}`, "self")
       }
-      return prevConnections.filter((conn) => conn.peer !== peerId);
-    });
-    setMessages((prevMessages) => {
-      const updatedMessages = { ...prevMessages };
-      delete updatedMessages[peerId];
-      return updatedMessages;
-    });
-    setCustomPeerNames((prevNames) => {
-      const updatedNames = { ...prevNames };
-      delete updatedNames[peerId];
-      return updatedNames;
-    });
-  };
+      setInputMessage("")
+    }
+  }
 
-  const updatePeerName = (peerId: string, newName: string) => {
-    setCustomPeerNames(prev => ({ ...prev, [peerId]: newName }))
+  const addMessage = (peerId: string, message: string, type: 'self' | 'peer') => {
+    setMessages((prev) => ({
+      ...prev,
+      [peerId]: [...(prev[peerId] || []), { text: message, type }],
+    }))
+  }
+
+  const handleDisconnect = (peerId: string) => {
+    const conn = connections.find((c) => c.peer === peerId)
+    if (conn) {
+      conn.close()
+    }
+    setConnections((prev) => prev.filter((c) => c.peer !== peerId))
+    setMessages((prev) => {
+      const newMessages = { ...prev }
+      delete newMessages[peerId]
+      return newMessages
+    })
+    if (currentPage === peerId) {
+      setCurrentPage("connected-peers")
+    }
+  }
+
+  const handleRename = (peerId: string) => {
+    setEditingPeerId(peerId)
+    setNewPeerName(customPeerNames[peerId] || "")
+    setIsRenameDialogOpen(true)
+  }
+
+  const confirmRename = () => {
+    if (newPeerName.trim() && editingPeerId) {
+      setCustomPeerNames((prev) => ({ ...prev, [editingPeerId]: newPeerName }))
+    }
+    setIsRenameDialogOpen(false)
     setEditingPeerId(null)
+    setNewPeerName("")
   }
 
   const renderMainContent = () => {
-    if (currentPage in messages) {
+    if (currentPage === "connected-peers") {
       return (
-        <Card className="flex-1">
-          <CardHeader>
-            <CardTitle>Chat with {customPeerNames[currentPage] || currentPage.slice(-6)}</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col h-[calc(100%-4rem)]">
-            <div className="flex-1 overflow-y-auto mb-4">
-              {(messages[currentPage] || []).map((msg, index) => (
-                <div key={index} className={`mb-2 ${msg.type === "self" ? "text-right text-blue-600" : "text-left text-gray-600"}`}>
-                  {msg.text}
+        <div className="p-4">
+          <h2 className="text-2xl font-bold mb-4">Connected Peers</h2>
+          <div className="flex items-center gap-2 mb-4">
+            <Input
+              value={inputPeerId}
+              onChange={(e) => setInputPeerId(e.target.value)}
+              placeholder="Enter Peer ID to connect"
+              className="flex-1"
+            />
+            <Button onClick={connectToPeer}>Connect</Button>
+          </div>
+          <ul>
+            {connections.map((conn) => (
+              <li key={conn.peer} className="flex items-center justify-between mb-2 p-2 bg-gray-100 rounded">
+                <span>{customPeerNames[conn.peer] || conn.peer}</span>
+                <div>
+                  <Button variant="outline" size="sm" onClick={() => handleRename(conn.peer)} className="mr-2">
+                    <Edit2 className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleDisconnect(conn.peer)}>
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-            <form onSubmit={handleSendMessage} className="flex gap-2">
-              <Input
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                placeholder="Type your message..."
-                className="flex-1"
-              />
-              <Button type="submit">
-                <Send className="h-4 w-4 mr-2" />
-                Send
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
-      );
-    } else {
-      switch (currentPage) {
-        case "peers":
-          return (
-            <Card className="flex-1">
-              <CardHeader>
-                <CardTitle>Connected Peers</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-4">
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      connectToPeer(inputPeerId);
-                    }}
-                    className="flex gap-2"
-                  >
-                    <Input
-                      value={inputPeerId}
-                      onChange={(e) => setInputPeerId(e.target.value)}
-                      placeholder="Enter Peer ID"
-                    />
-                    <Button type="submit" disabled={isLoading}>
-                      {isLoading ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Users className="h-4 w-4 mr-2" />
-                      )}
-                      Connect
-                    </Button>
-                  </form>
-                </div>
-                {connections.length === 0 ? (
-                  <p>No peers connected. Use the form above to connect to a peer.</p>
-                ) : (
-                  <ul>
-                    {connections.map((conn, index) => (
-                      <li key={index} className="mb-2 flex items-center justify-between">
-                        {editingPeerId === conn.peer ? (
-                          <form onSubmit={(e) => {
-                            e.preventDefault();
-                            const input = e.currentTarget.elements.namedItem('peerName') as HTMLInputElement;
-                            updatePeerName(conn.peer, input.value);
-                          }} className="flex-1 mr-2">
-                            <Input
-                              name="peerName"
-                              defaultValue={customPeerNames[conn.peer] || conn.peer.split(":").pop()}
-                              className="w-full"
-                              autoFocus
-                            />
-                          </form>
-                        ) : (
-                          <span className="flex items-center">
-                            {customPeerNames[conn.peer] || conn.peer.split(":").pop()}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setEditingPeerId(conn.peer)}
-                              className="ml-2"
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </Button>
-                          </span>
-                        )}
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => disconnectPeer(conn.peer)}
-                        >
-                          Disconnect
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardContent>
-            </Card>
-          );
-        case "files":
-          return (
-            <Card className="flex-1">
-              <CardHeader>
-                <CardTitle>Files</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p>File sharing functionality placeholder...</p>
-              </CardContent>
-            </Card>
-          );
-        default:
-          return null;
-      }
+              </li>
+            ))}
+          </ul>
+        </div>
+      )
     }
+
+    return (
+      <>
+        <div className="flex-1 overflow-auto p-4">
+          {messages[currentPage]?.map((msg, index) => (
+            <div key={index} className={`mb-2 ${msg.type === 'self' ? 'text-right' : 'text-left'}`}>
+              <span className="inline-block bg-gray-200 rounded px-2 py-1">
+                {msg.text}
+              </span>
+            </div>
+          ))}
+        </div>
+        <form onSubmit={handleSendMessage} className="flex gap-2 p-4">
+          <Input
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            placeholder="Type your message..."
+            className="flex-1"
+          />
+          <Button type="submit">
+            <Send className="h-4 w-4" />
+          </Button>
+        </form>
+      </>
+    )
+  }
+
+  const data = {
+    user: {
+      name: "YourPeerName",
+      pid: did,
+      avatar: "/avatars/shadcn.jpg",
+    },
+    navMain: [
+      {
+        title: "Peers",
+        url: "#",
+        icon: Users,
+        items: [
+          { title: "Connected Peers", url: "#connected-peers" },
+        ],
+      },
+      {
+        title: "Chat",
+        url: "#",
+        icon: MessageSquare,
+        items: [],
+      },    
+      {
+        title: "Files",
+        url: "#",
+        icon: FileText,
+        items: [
+          { title: "My Files", url: "#my-files" },
+          { title: "Shared", url: "#shared-files" },
+          { title: "Favorites", url: "#favorite-files" },
+        ],
+      },
+    ],
+    navSecondary: [
+      {
+        title: "Support",
+        url: "#",
+        icon: LifeBuoy,
+      },
+      {
+        title: "Feedback",
+        url: "#",
+        icon: Send,
+      },
+    ],
   }
 
   return (
     <SidebarProvider>
-      <div className="flex h-screen bg-white dark:bg-zinc-950">
-        <Sidebar collapsible="icon">
-          <SidebarHeader>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton size="lg" onClick={() => setCurrentPage("chat")}
-                   isActive={currentPage === "chat" || currentPage in messages}>
-                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-zinc-900 text-zinc-50 dark:bg-zinc-50 dark:text-zinc-900">
-                    <MessageSquare className="size-4" />
+      <Sidebar variant="inset">
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg" asChild>
+                <a href="#">
+                  <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                    <Sprout className="size-4" />
                   </div>
-                  <div className="flex flex-col gap-0.5 leading-none">
-                    <span className="font-semibold">Chat</span>
-                    <span className="text-xs">Connected Chats</span>
+                  <div className="grid flex-1 text-left text-sm leading-tight">
+                    <span className="truncate font-semibold">Yard.</span>
+                    <span className="truncate text-xs">P2P Messaging & More</span>
                   </div>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarHeader>
-          <SidebarContent>
-            <SidebarGroup>
-              <SidebarGroupLabel>Menu</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {/* PEERS */}
-                  <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => setCurrentPage("peers")} isActive={currentPage === "peers"}>
-                      <Users className="mr-2 h-4 w-4" />
-                      <span>Peers</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  {/* CHATS WIP */}
-                  <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => setCurrentPage("#")} isActive={currentPage === "#"}>
-                      <MessageSquare className="mr-2 h-4 w-4" />
-                      <span>Chat</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  {/* FILES */}
-                  <SidebarMenuItem>
-                    <SidebarMenuButton onClick={() => setCurrentPage("files")} isActive={currentPage === "files"}>
-                      <FileText className="mr-2 h-4 w-4" />
-                      <span>Files</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            {/* CONNECTED CHATS */}
-            <SidebarGroup>
-              <Collapsible>
-                <SidebarGroupLabel asChild>
-                  <CollapsibleTrigger className="flex w-full items-center justify-between p-2">
-                    Connected Chats
-                    <ChevronRight className="h-4 w-4" />
-                  </CollapsibleTrigger>
-                </SidebarGroupLabel>
-                <CollapsibleContent>
-                  <SidebarGroupContent>
-                    <SidebarMenu>
-                      {connections.map((conn, index) => (
-                        <SidebarMenuItem key={index}>
-                          <SidebarMenuButton 
-                            onClick={() => setCurrentPage(conn.peer)}
-                            className="flex items-center space-x-2 w-full p-2 rounded-md hover:bg-gray-100  dark:hover:bg-gray-800"
-                          >
-                            <Avatar className="h-6 w-6">
-                              {/* <AvatarImage src={`https://api.dicebear.com/6.x/initials/svg?seed=${conn.peer}`} /> */}
-                              <AvatarImage src={`https://api.dicebear.com/6.x/initials/svg?seed=${conn.peer.slice(0, 2).toUpperCase()}`} />
-                              <AvatarFallback>{(customPeerNames[conn.peer] || conn.peer).slice(0, 2).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">
-                                {customPeerNames[conn.peer] || conn.peer.split(":").pop()}
-                              </p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                {messages[conn.peer]?.length ? messages[conn.peer][messages[conn.peer].length - 1].text.slice(0, 20) + '...' : 'No messages yet'}
-                              </p>
-                            </div>
-                            <Badge variant="secondary" className="ml-auto">
-                              {messages[conn.peer]?.filter(m => m.type === 'peer').length || 0}
-                            </Badge>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                    </SidebarMenu>
-                  </SidebarGroupContent>
-                </CollapsibleContent>
-              </Collapsible>
-            </SidebarGroup>
-          </SidebarContent>
-
-          {/* FOOTER */}
-          <SidebarFooter>
+                </a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent>
+         <SidebarGroup>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={copyPeerId}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  <span>Copy Peer ID</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {data.navMain.map((item) => (
+                <Collapsible key={item.title} asChild>
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton asChild tooltip={item.title}>
+                        <button>
+                          <item.icon />
+                          <span>{item.title}</span>
+                        </button>
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuAction className="data-[state=open]:rotate-90">
+                        <ChevronRight />
+                        <span className="sr-only">Toggle {item.title}</span>
+                      </SidebarMenuAction>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {item.title === "Peers" ? (
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild onClick={() => setCurrentPage("connected-peers")}>
+                              <a href="#connected-peers">
+                                <span>Connected Peers</span>
+                              </a>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ) : item.title === "Chat" ? (
+                          connections.map((conn) => (
+                            <SidebarMenuSubItem key={conn.peer}>
+                              <SidebarMenuSubButton asChild onClick={() => setCurrentPage(conn.peer)}>
+                                <a href={`#${conn.peer}`}>
+                                  <span>{customPeerNames[conn.peer] || conn.peer}</span>
+                                </a>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))
+                        ) : item.title === "Files" ? (
+                          item.items.map((subItem) => (
+                            <SidebarMenuSubItem key={subItem.title}>
+                              <SidebarMenuSubButton asChild onClick={() => setCurrentPage(subItem.title)}>
+                                <a href={subItem.url}>
+                                  <span>{subItem.title}</span>
+                                </a>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))
+                        ) : null }
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              ))}
             </SidebarMenu>
-          </SidebarFooter>
-          <SidebarRail />
-        </Sidebar>
-        <main className="flex flex-1 flex-col overflow-hidden">
-          <header className="flex h-14 lg:h-[60px] items-center gap-4 border-b bg-gray-100/40 px-6 dark:bg-gray-800/40">
-            <SidebarTrigger />
-            <h1 className="font-semibold">Yard Chat</h1>
-            <div className="ml-auto text-sm">Your Peer ID: {peer?.id}</div>
-          </header>
-          <div className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-6">
-            {renderMainContent()}
+          </SidebarGroup>
+
+          {/* NAV SECONDARY     */}
+          <SidebarGroup className="mt-auto">
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {data.navSecondary.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild size="sm">
+                      <a href={item.url}>
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton
+                    size="lg"
+                    className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                  >
+                    <Avatar className="h-8 w-8 rounded-lg">
+                      <AvatarImage
+                        src={data.user.avatar}
+                        alt={data.user.name}
+                      />
+                      <AvatarFallback className="rounded-lg">YP</AvatarFallback>
+                    </Avatar>
+                    <div className="grid flex-1 text-left text-sm leading-tight">
+                      <span className="truncate font-semibold">
+                        {data.user.name}
+                      </span>
+                      <span className="truncate text-xs">
+                        {data.user.pid}
+                      </span>
+                    </div>
+                    <ChevronsUpDown className="ml-auto size-4" />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                  side="bottom"
+                  align="end"
+                  sideOffset={4}
+                >
+                  <DropdownMenuLabel className="p-0 font-normal">
+                    <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+                      <Avatar className="h-8 w-8 rounded-lg">
+                        <AvatarImage
+                          src={data.user.avatar}
+                          alt={data.user.name}
+                        />
+                        <AvatarFallback className="rounded-lg">
+                          YP
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="grid flex-1 text-left text-sm leading-tight">
+                        <span className="truncate font-semibold">
+                          {data.user.name}
+                        </span>
+                        <span className="truncate text-xs">
+                          {data.user.pid}
+                        </span>
+                      </div>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem onClick={copyPeerId}>
+                    <Copy className="mr-2 h-4 w-4" />
+                      Copy Peer ID
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <BadgeCheck className="mr-2 h-4 w-4" />
+                      Account
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem>
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Billing
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Bell className="mr-2 h-4 w-4" />
+                      Notifications
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2">
+          <div className="flex items-center gap-2 px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem className="hidden md:block">
+                  <BreadcrumbLink href="#">Yard Chat</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="hidden md:block" />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>
+                    {currentPage === "connected-peers" 
+                      ? "Connected Peers" 
+                      : customPeerNames[currentPage] || currentPage}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
           </div>
-        </main>
-      </div>
+        </header>
+        <div className="flex flex-1 flex-col">
+          {renderMainContent()}
+        </div>
+      </SidebarInset>
+      <Dialog open={isRenameDialogOpen} onOpenChange={setIsRenameDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename Peer</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={newPeerName}
+            onChange={(e) => setNewPeerName(e.target.value)}
+            placeholder="Enter new name"
+          />
+          <Button onClick={confirmRename}>Rename</Button>
+        </DialogContent>
+      </Dialog>
+      <Toaster />
     </SidebarProvider>
   )
 }
