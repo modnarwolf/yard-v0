@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react"
 import Peer from "peerjs"
+
+//* ICONS
 import {
   BadgeCheck,
   Bell,
@@ -19,10 +21,13 @@ import {
   Leaf,
   Sprout,
   Flower,
+  Squirrel,
   FileText,
   Club,
   LifeBuoy,
+  Squircle,
 } from "lucide-react"
+
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -169,7 +174,7 @@ export function YardChatAppComponent({ did, peer }: YardChatAppComponentProps) {
     handleIncomingConnection(newConn)
     setInputPeerId("")
   }
-  
+
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault()
     if (currentPage && currentPage !== "connected-peers" && inputMessage.trim()) {
@@ -334,10 +339,10 @@ export function YardChatAppComponent({ did, peer }: YardChatAppComponentProps) {
               <SidebarMenuButton size="lg" asChild>
                 <a href="#">
                   <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                    <Sprout className="size-4" />
+                    <Leaf className="size-5" />
                   </div>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">Yard.</span>
+                    <span className="truncate font-semibold">Yard.Software</span>
                     <span className="truncate text-xs">P2P Messaging & More</span>
                   </div>
                 </a>
