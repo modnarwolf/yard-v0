@@ -12,7 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 function App() {
   const [did, setDid] = useState<string>('')
-  const [privateKey, setPrivateKey] = useState<string | null>(null)
+  const [privateKey, setPrivateKey] = useState<JSON | null>(null)
+  // const pkey = privateKey
   const [resolvedDid, setResolvedDid] = useState<any | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -53,11 +54,13 @@ function App() {
         return
       }
       // Import the DID using the private key JSON
-      console.log('Attempting to import DID with private key:', privateKey)
-      const keyJson = JSON.parse(privateKey)
+      console.log('Attempting to import DID with private key:', privateKey.uri)
+      const jsonKey = JSON.parse(privateKey);
+      
       const importedDid = await DidDht.import({
-        privateKeys: [keyJson],
-      })
+          portableDid: jsonKey
+        }
+      )
       if (!importedDid) {
         throw new Error('Failed to import DID. Imported DID object is undefined.')
       }
@@ -92,7 +95,8 @@ function App() {
       }
       setDid(newDid.id)
       setPrivateKey(JSON.stringify(newDid.privateKey))
-      console.log('Generated Private Key JSON:', JSON.stringify(newDid.privateKey, null, 2))
+
+      // console.log('Generated Private Key JSON:', JSON.stringify(newDid.privateKey, null, 2))
       const resolvedNewDid = await resolveDidDocument(newDid.id)
       if (!resolvedNewDid) {
         throw new Error('Newly created DID could not be resolved')
@@ -109,12 +113,72 @@ function App() {
     }
   }
 
+
+  //* EXPORTS DID INFO TO A JSON FILE
+  async function exportDidToJson(didDht) {
+    try {
+      // Export the portable DID
+      const portableDid = didDht
+      
+      // Convert to formatted JSON string
+      const jsonString = JSON.stringify(didDht, null, 2);
+      
+      // Print to console
+      console.log('Portable DID:', jsonString);
+      
+      // Create a blob with the JSON data
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      
+      try {
+        // Use the File System Access API to save the file
+        const handle = await window.showSaveFilePicker({
+          suggestedName: `did-${Date.now()}.json`,
+          types: [{
+            description: 'JSON Files',
+            accept: {
+              'application/json': ['.json'],
+            },
+          }],
+        });
+        
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        
+        console.log('DID saved successfully');
+      } catch (error) {
+        // Fallback to download if File System Access API is not supported
+        // or user cancels the file picker
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `did-${Date.now()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        console.log('DID downloaded successfully');
+      }
+      
+      return portableDid;
+    } catch (error) {
+      console.error('Error exporting DID:', error);
+      throw error;
+    }
+  }
+
   const createNewDid = async () => {
     try {
       // Using DidDht to create a DID with the 'dht' method and publish it
       const didDht = await DidDht.create({ publish: true })
+      // const portableDid = await didDht.export()
       const portableDid = await didDht.export()
-      console.log('Portable DID:', portableDid)
+      const jsonString = JSON.stringify(portableDid, null, 2);
+      console.log('Portable DID:', jsonString);
+
+      //!! EXPORTS DID INFO TO A JSON FILE
+      // exportDidToJson(portableDid)
 
       return { id: didDht.uri, document: didDht.document, privateKey: portableDid.privateKeys[0] }
     } catch (err) {
