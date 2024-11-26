@@ -73,6 +73,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
+import { OPFSFileManager } from "./opfsFileManager"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Toaster } from "./ui/toaster"
 import { useToast } from "@/hooks/use-toast"
@@ -254,6 +255,14 @@ export function YardChatAppComponent({ did, peer }: YardChatAppComponentProps) {
               </li>
             ))}
           </ul>
+        </div>
+      )
+    } else if (currentPage === "my-files" || currentPage === "shared-files" || currentPage === "favorite-files") {
+      console.log("Rendering OPFSFileManager");
+      //! IDK WHY NO WORK  
+      return (
+        <div className="p-4">
+          <OPFSFileManager />;
         </div>
       )
     }
@@ -552,6 +561,8 @@ export function YardChatAppComponent({ did, peer }: YardChatAppComponentProps) {
         </DialogContent>
       </Dialog>
       <Toaster />
+      {/* // TEMP CHECKPOINT */}
+      {/* <OPFSFileManager /> */}
     </SidebarProvider>
   )
 }

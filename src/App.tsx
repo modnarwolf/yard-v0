@@ -11,9 +11,12 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 function App() {
+
+  //TODO not sure why is runs multiple times
+  console.log('Running...');
+  
   const [did, setDid] = useState<string>('')
-  const [privateKey, setPrivateKey] = useState<JSON | null>(null)
-  // const pkey = privateKey
+  const [privateKey, setPrivateKey] = useState<string | null>(null)
   const [resolvedDid, setResolvedDid] = useState<any | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isCreating, setIsCreating] = useState(false)
@@ -34,7 +37,7 @@ function App() {
     })
 
     newPeer.on('open', (id) => {
-      console.log('My peer ID is: ' + id)
+      console.log('My peer ID is: ' + id)      
     })
 
     newPeer.on('error', (err) => {
@@ -44,6 +47,7 @@ function App() {
 
     setPeer(newPeer)
   }
+
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
